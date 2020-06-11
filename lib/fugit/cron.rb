@@ -138,9 +138,26 @@ module Fugit
     end
 
     def month_match?(nt); ( ! @months) || @months.include?(nt.month); end
-    def hour_match?(nt); ( ! @hours) || @hours.include?(nt.hour); end
+    def hour_match?(nt); !@hours || @hours.include?(nt.hour) || (defined?(nt.time) && dst_match?(nt.time)); end
     def min_match?(nt); ( ! @minutes) || @minutes.include?(nt.min); end
     def sec_match?(nt); ( ! @seconds) || @seconds.include?(nt.sec); end
+
+    def dst_match?(time)
+      time.is_dst? &&
+        time.strftime('%Y-%m-%d-%H') == dst_start(time).strftime('%Y-%m-%d-%H') &&
+        @hours.include?(time.hour - 1)
+    end
+
+    def dst_start(time)
+      period = time.zone.period_for_utc(time.utc)
+
+      # tzinfo < 2
+      if defined?(period.local_start)
+        period.local_start
+      else
+        period.local_starts_at.to_time
+      end
+    end
 
     def weekday_hash_match?(nt, hsh)
 
@@ -260,10 +277,7 @@ module Fugit
         break
       end
 
-      t.time.translate(from.zone)
-        #
-        # the answer time is in the same timezone as the `from`
-        # starting point
+      t.time
     end
 
     def previous_time(from=::EtOrbi::EoTime.now)

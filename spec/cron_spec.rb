@@ -192,7 +192,7 @@ describe Fugit::Cron do
 
           points =
             4.times.collect do
-              t = c.next_time(t)
+              t = c.next_time(t).translate('America/Los_Angeles')
               t.strftime('%H:%M_%Z') + '__' + t.dup.utc.strftime('%H:%M_%Z')
             end
 
@@ -271,11 +271,11 @@ describe Fugit::Cron do
 
     context 'explicit timezone' do
 
-      it 'computes in the cron zone but returns in the from zone' do
+      it 'computes in the cron zone and returns in the same zone' do
 
         c = Fugit::Cron.parse('* * * * * Europe/Rome')
         f = EtOrbi.parse('2017-03-25 21:59 Asia/Tbilisi')
-        t = c.next_time(f)
+        t = c.next_time(f).translate('Asia/Tbilisi')
 
         expect(t.class).to eq(EtOrbi::EoTime)
         expect(t.iso8601).to eq('2017-03-25T22:00:00+04:00')
@@ -285,7 +285,7 @@ describe Fugit::Cron do
 
         c = Fugit::Cron.parse('0 0 1 1 * Europe/Rome')
         f = EtOrbi.parse('2017-03-25 21:59 Asia/Tbilisi')
-        t = c.next_time(f)
+        t = c.next_time(f).translate('Asia/Tbilisi')
 
         expect(t.class)
           .to eq(EtOrbi::EoTime)
@@ -375,6 +375,50 @@ describe Fugit::Cron do
           cron.next_time
         }.not_to raise_error
       end
+    end
+
+    it 'will not skip a day when DST begins' do
+      # Schedule is every day at 2:30 AM in Eastern timezone
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/New_York').next_time(Time.utc(2020, 3, 6, 5, 30)).to_s
+      ).to eq('2020-03-06 02:30:00 -0500')
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/New_York').next_time(Time.utc(2020, 3, 7, 5, 30)).to_s
+      ).to eq('2020-03-07 02:30:00 -0500')
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/New_York').next_time(Time.utc(2020, 3, 8, 5, 30)).to_s
+      ).to eq('2020-03-08 03:30:00 -0400')
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/New_York').next_time(Time.utc(2020, 3, 9, 5, 30)).to_s
+      ).to eq('2020-03-09 02:30:00 -0400')
+
+      # Schedule is every day at 2:30 AM in Pacific timezone
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/Los_Angeles').next_time(Time.utc(2020, 3, 6, 8, 30)).to_s
+      ).to eq('2020-03-06 02:30:00 -0800')
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/Los_Angeles').next_time(Time.utc(2020, 3, 7, 8, 30)).to_s
+      ).to eq('2020-03-07 02:30:00 -0800')
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/Los_Angeles').next_time(Time.utc(2020, 3, 8, 8, 30)).to_s
+      ).to eq('2020-03-08 03:30:00 -0700')
+      expect(
+        Fugit::Cron.parse('0 30 2 /1 * * America/Los_Angeles').next_time(Time.utc(2020, 3, 9, 8, 30)).to_s
+      ).to eq('2020-03-09 02:30:00 -0700')
+
+      # Schedule is every day at 3:30 AM and Daylight Savings occurs at 3am in Asia/Nicosia timezone
+      expect(
+        Fugit::Cron.parse('0 30 3 /1 * * Asia/Nicosia').next_time(Time.utc(2020, 3, 26, 22, 30)).to_s
+      ).to eq('2020-03-27 03:30:00 +0200')
+      expect(
+        Fugit::Cron.parse('0 30 3 /1 * * Asia/Nicosia').next_time(Time.utc(2020, 3, 27, 22, 30)).to_s
+      ).to eq('2020-03-28 03:30:00 +0200')
+      expect(
+        Fugit::Cron.parse('0 30 3 /1 * * Asia/Nicosia').next_time(Time.utc(2020, 3, 28, 22, 30)).to_s
+      ).to eq('2020-03-29 04:30:00 +0300')
+      expect(
+        Fugit::Cron.parse('0 30 3 /1 * * Asia/Nicosia').next_time(Time.utc(2020, 3, 29, 22, 30)).to_s
+      ).to eq('2020-03-30 03:30:00 +0300')
     end
   end
 
